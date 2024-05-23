@@ -1,0 +1,38 @@
+{
+   "action": {
+      "default_icon": "img/icone.png",
+      "default_popup": "html/popup.html"
+   },
+   "background": {
+      "service_worker": "js/service-worker.js"
+   },
+   "content_scripts": [
+      {
+         "js": [
+            "js/content.js"
+         ],
+         "matches": [
+            "https://www.grancursosonline.com.br/aluno/curso/video/codigo/*",
+            "https://www.grancursosonline.com.br/aluno/espaco/curso/codigo/*"
+         ]
+      }
+   ],
+   "description": "Automatizador para o GranCursos",
+   "icons": {
+      "128": "img/icone.png"
+   },
+   "manifest_version": 3,
+   "name": "GranCursosDownload",
+   "permissions": [
+      "activeTab",
+      "scripting",
+      "tabs",
+      "downloads"
+   ],
+   "host_permissions": [
+      "https://www.grancursosonline.com.br/*",
+      "https://degravacao-cdn.infra.grancursosonline.com.br/*",
+      "https://apostila-cdn.infra.grancursosonline.com.br/*"
+   ],
+   "version": "0.0.1"
+}
