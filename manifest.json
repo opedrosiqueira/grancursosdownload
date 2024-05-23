@@ -24,8 +24,6 @@
    "manifest_version": 3,
    "name": "GranCursosDownload",
    "permissions": [
-      "activeTab",
-      "scripting",
       "tabs",
       "downloads"
    ],
