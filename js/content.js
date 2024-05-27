@@ -32,7 +32,10 @@ chrome.runtime.onMessage.addListener(
     async function (request, sender, sendResponse) {
         if (request.fn == 'baixarVideo') await baixarVideo()
         else if (request.fn == 'baixarSlides') await baixarMaterial("Baixar slide da aula")
-        else if (request.fn == 'baixarResumos') await baixarMaterial("Material em PDF", " resumo.pdf")
+        else if (request.fn == 'baixarResumos') {
+            await baixarMaterial("Material em PDF", " resumo.pdf")
+            await baixarMaterial("Baixar aula degravada", " resumo.pdf")
+        }
         sendResponse({ success: "TRUE" });
         return true;
     });
