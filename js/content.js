@@ -23,7 +23,7 @@ async function baixarVideo() {
 async function baixarMaterial(label, extensao = ".pdf") {
     for (el of document.querySelector('iframe').contentDocument.querySelectorAll("#lista-aulas > li")) {
         const filename = el.querySelector('span').innerText.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-') + extensao
-        const material = el.querySelector(`a[aria-label="${label}"`)
+        const material = el.querySelector(`a[aria-label="${label}"`) ?? el.querySelector(`a[href^="/aluno/espaco/${label}"]`)
         if (material?.href) await chrome.runtime.sendMessage({ savepdf: { url: material.href, filename } })
     }
 }
@@ -31,10 +31,14 @@ async function baixarMaterial(label, extensao = ".pdf") {
 chrome.runtime.onMessage.addListener(
     async function (request, sender, sendResponse) {
         if (request.fn == 'baixarVideo') await baixarVideo()
-        else if (request.fn == 'baixarSlides') await baixarMaterial("Baixar slide da aula")
+        else if (request.fn == 'baixarSlides') {
+            await baixarMaterial("Baixar slide da aula")
+            await baixarMaterial("download-apostila")
+        }
         else if (request.fn == 'baixarResumos') {
             await baixarMaterial("Material em PDF", " resumo.pdf")
             await baixarMaterial("Baixar aula degravada", " resumo.pdf")
+            await baixarMaterial("download-resumo", " resumo.pdf")
         }
         sendResponse({ success: "TRUE" });
         return true;
