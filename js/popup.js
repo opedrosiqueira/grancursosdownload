@@ -9,4 +9,5 @@ window.addEventListener('load', (event) => {
     document.getElementById('baixarVideo').addEventListener('click', callFunction);
     document.getElementById('baixarSlides').addEventListener('click', callFunction);
     document.getElementById('baixarResumos').addEventListener('click', callFunction);
+    document.getElementById('salvarProgresso').addEventListener('click', callFunction);
 });
