@@ -1,187 +1,135 @@
-let database;
-let page;
-let disciplina;
-let conteudo;
-let aula;
+let database, page, curso, disciplina, conteudo, aula;
+
+function queryDB(key, value) {
+    console.log("consultando", key, value);
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction(["aula"], 'readonly');
+        const store = transaction.objectStore("aula");
+        const index = store.index(key);
+        const request = index.getAll(value);
+
+        request.onsuccess = () => resolve(request.result); // Resolve with the result
+        request.onerror = () => reject(request.error); // Reject on error
+    });
+}
+
+function addToDB(data) {
+    console.log("adicionando", data);
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction(["aula"], 'readwrite');
+        const store = transaction.objectStore("aula");
+        const request = store.add(data);
+
+        request.onsuccess = () => resolve(request.result); // Resolve with the result
+        request.onerror = () => reject(request.error); // Reject on error
+    });
+}
+
+function putToDB(data) {
+    if (!data.id) throw new Error("{id} is required");
+    console.log("atualizando", data.id, "com", data);
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction(["aula"], 'readwrite');
+        const store = transaction.objectStore("aula");
+        const request = store.get(data.id)
+        request.onsuccess = (event) => {
+            if (!event.target.result) throw new Error("no data with id", data.id);
+            const request = store.put({ ...event.target.result, ...data });
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function updateDatabase(aula, tipo, filename, url) {
+    const [arquivo] = await queryDB(tipo, filename);
+    if (!arquivo) { await downloadFile(url, filename); }
+
+    const [result] = await queryDB("materia", [curso, disciplina, conteudo, aula]);
+    if (!result) await addToDB({ curso, disciplina, conteudo, aula, [tipo]: filename, [tipo + 'URL']: url });
+    else if (result[tipo] == filename) console.log(`já baixado: ${filename}`)
+    else await putToDB({ id: result.id, [tipo]: filename, [tipo + 'URL']: url });
+}
+
+async function downloadFile(url, filename) {
+    console.log("baixando arquivo", filename);
+
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    a.click();
+
+    URL.revokeObjectURL(blobUrl);
+}
 
 async function baixarVideo(url) {
     const filename = url.match(/[^\/]+\.mp4/)[0]
-    if (!database.includes(filename)) {
-        console.log("baixando vídeo", filename);
-
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        URL.revokeObjectURL(blobUrl);
-    }
-
-    if (database.includes(`${disciplina};${conteudo};${aula};${filename}`)) {
-        console.log(filename, "já baixado!")
-        return
-    } else if (database.includes(`${disciplina};${conteudo};${aula}`)) {
-        console.log("acrescentando", filename, "na aula", aula)
-        const index = database.indexOf(`${disciplina};${conteudo};${aula}`) + (`${disciplina};${conteudo};${aula}`).length
-        database = database.slice(0, index) + ';' + filename + database.slice(index)
-    } else {
-        console.log("acrescentando", disciplina, conteudo, aula, filename);
-        database += `\n${disciplina};${conteudo};${aula};${filename};;`
-    }
+    updateDatabase(aula, "video", filename, url);
 }
 
-function updateDatabase(disciplina, conteudo, aula, url, i) {
-    const match = database.match(`(${disciplina};${conteudo};${aula})(;.*?)(;.*?)(;.*?)`)
-    if (!match) {
-        console.log("adicionando", disciplina, conteudo, aula, url)
-        database += `\n${disciplina};${conteudo};${aula}`
-        database += i == 2 ? `;${url};;` : i == 3 ? `;;${url};` : `;;;${url}`
-        return;
-    }
-
-    url = ";" + url;
-    if (match[i] == url) {
-        console.log(`já baixado: ${match[i]}`)
-        return
-    }
-
-    const groups = i == 2 ? url + match[3] + match[4] :
-        i == 3 ? match[2] + url + match[4] :
-            match[2] + match[3] + url;
-
-    console.log(`atualizando: ${match[1]}`)
-    const index = database.indexOf(match[1]) + match[1].length;
-    database = database.slice(0, index) + groups + database.slice(index + (match[0]).length)
-}
-
-async function baixarMaterial(label, isSlide = true) {
+async function baixarMaterial(label, tipo = "slide") {
     for (el of page.querySelectorAll("#lista-aulas > li")) {
-        ok = false;
         const material = el.querySelector(`a[aria-label="${label}"`) ?? el.querySelector(`a[href^="/aluno/espaco/${label}"]`)
-        if (!material?.href) continue;
+        const aula = el.querySelector('span').innerText.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-')
+        if (!material?.href || !aula) continue;
 
-        // parei aqui. qual escolher?
-        
-        // alternativa 1
-        // const { url } = await fetch(material.href);
-        // const link = document.createElement('a');
-        // link.href = url;
-        // link.download = 'file.pdf';
-        // link.dispatchEvent(new MouseEvent('click'));
+        const { url } = await fetch(material.href);
+        const filename = url.split(/\/|\?/).at(-2);
+        if (!filename) { console.log("erro ao extrair filename:", url); continue; }
 
-        // alternativa 2
-        // const response = await fetch(url);
-        // const blob = await response.blob();
-        // const blobUrl = URL.createObjectURL(blob);
-
-        // const a = document.createElement('a');
-        // a.href = blobUrl;
-        // a.download = filename;
-        // document.body.appendChild(a);
-        // a.click();
-        // document.body.removeChild(a);
-
-        // URL.revokeObjectURL(blobUrl);
-
-
-        // else if (!database.includes(material?.href)) {
-        //     const aula = el.querySelector('span').innerText.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-')
-        //     ok = (await chrome.runtime.sendMessage({ savepdf: { url: material.href } })).ok;
-        // } else {
-        //     ok = true;
-        // }
-
-        // if (ok) {
-        //     updateDatabase(disciplina, conteudo, aula, material.url, isSlide ? 2 : 3);
-        // } else {
-        //     console.log(`erro ao baixar: ${material.url}`);
-        // }
+        updateDatabase(aula, tipo, filename, url);
     }
 }
 
 async function loadDatabase() {
+    page = document.querySelector('iframe').contentDocument
+    curso = page.body.innerHTML.match(/Voltar para tela do curso: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+    disciplina = page.body.innerHTML.match(/Disciplina selecionada: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+    conteudo = page.body.innerHTML.match(/Conteúdo selecionado: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+    aula = page.querySelector('h1').innerText.replace(/ \(código.*/, '').replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+
+    if (!curso || !disciplina || !conteudo || !aula) {
+        console.log("não conseguiu extrair curso", curso, "ou disciplina", disciplina, "ou conteudo", conteudo, "ou aula", aula)
+        return
+    }
+
     return new Promise((resolve, reject) => {
-        // Create a hidden input element of type 'file'
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-
-        // Optionally, set file input attributes
-        fileInput.accept = '.csv'; // Restrict file types (e.g., .txt, .pdf)
-        // fileInput.multiple = true; // Allow multiple file selection
-
-        // Listen for file selection
-        fileInput.addEventListener('change', (event) => {
-            const files = event.target.files; // Get the selected files
-            if (files.length === 0) {
-                reject(new Error('No file selected'));
-                return;
-            }
-
-            const file = files[0]; // Take the first selected file
-            const reader = new FileReader();
-
-            // Handle successful reading
-            reader.onload = function (e) {
-                const database = e.target.result;
-                resolve(database); // Resolve the promise with the parsed content
-            };
-
-            // Handle reading errors
-            reader.onerror = function () {
-                reject(new Error('Failed to read the file'));
-            };
-
-            // Trigger reading the file
-            reader.readAsText(file);
-        });
-
-        // Trigger the file dialog
-        fileInput.click();
+        const request = indexedDB.open("grancursos", 1);
+        request.onerror = (event) => {
+            reject(new Error(event.target.error?.message));
+        };
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            const aula = db.createObjectStore("aula", { keyPath: "id", autoIncrement: true });
+            aula.createIndex('materia', ['curso', 'disciplina', 'conteudo', 'aula']);
+            aula.createIndex("curso", "curso");
+            aula.createIndex("disciplina", "disciplina");
+            aula.createIndex("conteudo", "conteudo");
+            aula.createIndex("aula", "aula");
+            aula.createIndex("slide", "slide");
+            aula.createIndex("resumo", "resumo");
+            aula.createIndex("video", "video");
+            aula.createIndex("slideURL", "slideURL");
+            aula.createIndex("resumoURL", "resumoURL");
+            aula.createIndex("videoURL", "videoURL");
+        };
     });
 }
 
 async function salvarProgresso(fileName, contentType) {
-    const response = await fetch('https://www.grancursosonline.com.br/aluno/espaco/download-apostila/codigo/mT71cgR2NDc%3D/c/M1iEBvYTFqE%3D')
-    const blob = await response.blob();
-    try {
-        // Open the save file dialog
-        const fileHandle = await window.showSaveFilePicker({
-            suggestedName: fileName,
-            types: [
-                {
-                    description: 'CSV file',
-                    accept: contentType
-                }
-            ]
-        });
-
-        // Create a writable stream
-        const writableStream = await fileHandle.createWritable();
-
-        // Write the file content
-        await writableStream.write(database);
-
-        // Close the writable stream
-        await writableStream.close();
-
-        console.log('File saved successfully!');
-    } catch (error) {
-        console.error('Error saving file:', error);
-    }
+    console.log("teste")
 }
 
 chrome.runtime.onMessage.addListener(
     async function (request, sender, sendResponse) {
-        if (!disciplina || !aula || !conteudo) {
-            console.log("não conseguiu extrair disciplina", disciplina, "ou aula", aula, "ou conteudo", conteudo)
-            return
-        }
         if (!database) database = await loadDatabase();
 
         if (request.fn == 'salvarProgresso') salvarProgresso('grancursos.csv', { 'text/csv': ['.csv'] })
@@ -190,17 +138,10 @@ chrome.runtime.onMessage.addListener(
             await baixarMaterial("Baixar slide da aula")
             await baixarMaterial("download-apostila")
         } else if (request.fn == 'baixarResumos') {
-            await baixarMaterial("Material em PDF", false)
-            await baixarMaterial("Baixar aula degravada", false)
-            await baixarMaterial("download-resumo", false)
+            await baixarMaterial("Material em PDF", "resumo")
+            await baixarMaterial("Baixar aula degravada", "resumo")
+            await baixarMaterial("download-resumo", "resumo")
         }
         sendResponse({ success: "TRUE" });
         return true;
     });
-
-window.addEventListener('load', (event) => {
-    page = document.querySelector('iframe').contentDocument
-    disciplina = page.body.innerHTML.match(/Disciplina selecionada: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-    conteudo = page.body.innerHTML.match(/Conteúdo selecionado: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-    aula = page.querySelector('h1').innerText.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-});
