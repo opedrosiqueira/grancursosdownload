@@ -1,5 +1,43 @@
 let database, page, curso, disciplina, conteudo, aula;
 
+async function loadDatabase() {
+    page = document.querySelector('iframe').contentDocument
+    curso = page.body.innerHTML.match(/Voltar para tela do curso: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+    disciplina = page.body.innerHTML.match(/Disciplina selecionada: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+    conteudo = page.body.innerHTML.match(/Conteúdo selecionado: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+    aula = page.querySelector('h1').innerText.replace(/ \(código.*/, '').replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
+
+    if (!curso || !disciplina || !conteudo || !aula) {
+        console.log("não conseguiu extrair curso", curso, "ou disciplina", disciplina, "ou conteudo", conteudo, "ou aula", aula)
+        return
+    }
+
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open("grancursos", 1);
+        request.onerror = (event) => {
+            reject(new Error(event.target.error?.message));
+        };
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            const aula = db.createObjectStore("aula", { keyPath: "id", autoIncrement: true });
+            aula.createIndex('materia', ['curso', 'disciplina', 'conteudo', 'aula']);
+            aula.createIndex("curso", "curso");
+            aula.createIndex("disciplina", "disciplina");
+            aula.createIndex("conteudo", "conteudo");
+            aula.createIndex("aula", "aula");
+            aula.createIndex("slide", "slide");
+            aula.createIndex("resumo", "resumo");
+            aula.createIndex("video", "video");
+            aula.createIndex("slideURL", "slideURL");
+            aula.createIndex("resumoURL", "resumoURL");
+            aula.createIndex("videoURL", "videoURL");
+        };
+    });
+}
+
 function queryDB(key, value) {
     console.log("consultando", key, value);
     return new Promise((resolve, reject) => {
@@ -67,11 +105,6 @@ async function downloadFile(url, filename) {
     URL.revokeObjectURL(blobUrl);
 }
 
-async function baixarVideo(url) {
-    const filename = url.match(/[^\/]+\.mp4/)[0]
-    updateDatabase(aula, "video", filename, url);
-}
-
 async function baixarMaterial(label, tipo = "slide") {
     for (el of page.querySelectorAll("#lista-aulas > li")) {
         const material = el.querySelector(`a[aria-label="${label}"`) ?? el.querySelector(`a[href^="/aluno/espaco/${label}"]`)
@@ -86,42 +119,9 @@ async function baixarMaterial(label, tipo = "slide") {
     }
 }
 
-async function loadDatabase() {
-    page = document.querySelector('iframe').contentDocument
-    curso = page.body.innerHTML.match(/Voltar para tela do curso: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-    disciplina = page.body.innerHTML.match(/Disciplina selecionada: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-    conteudo = page.body.innerHTML.match(/Conteúdo selecionado: (.+?)"/)[1].replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-    aula = page.querySelector('h1').innerText.replace(/ \(código.*/, '').replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim()
-
-    if (!curso || !disciplina || !conteudo || !aula) {
-        console.log("não conseguiu extrair curso", curso, "ou disciplina", disciplina, "ou conteudo", conteudo, "ou aula", aula)
-        return
-    }
-
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open("grancursos", 1);
-        request.onerror = (event) => {
-            reject(new Error(event.target.error?.message));
-        };
-        request.onsuccess = (event) => {
-            resolve(event.target.result);
-        };
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            const aula = db.createObjectStore("aula", { keyPath: "id", autoIncrement: true });
-            aula.createIndex('materia', ['curso', 'disciplina', 'conteudo', 'aula']);
-            aula.createIndex("curso", "curso");
-            aula.createIndex("disciplina", "disciplina");
-            aula.createIndex("conteudo", "conteudo");
-            aula.createIndex("aula", "aula");
-            aula.createIndex("slide", "slide");
-            aula.createIndex("resumo", "resumo");
-            aula.createIndex("video", "video");
-            aula.createIndex("slideURL", "slideURL");
-            aula.createIndex("resumoURL", "resumoURL");
-            aula.createIndex("videoURL", "videoURL");
-        };
-    });
+async function baixarVideo(url) {
+    const filename = url.match(/[^\/]+\.mp4/)[0]
+    updateDatabase(aula, "video", filename, url);
 }
 
 async function salvarProgresso(fileName, contentType) {
