@@ -3,9 +3,6 @@
       "default_icon": "img/icone.png",
       "default_popup": "html/popup.html"
    },
-   "background": {
-      "service_worker": "js/service-worker.js"
-   },
    "content_scripts": [
       {
          "js": [
