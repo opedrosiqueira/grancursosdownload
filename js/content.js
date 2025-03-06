@@ -1,4 +1,4 @@
-let database, page, curso, disciplina, conteudo, aula;
+let database, curso, disciplina, conteudo, aula;
 
 const DB_STORE = "aula";
 
@@ -27,27 +27,23 @@ function openDatabase(name, version) {
 }
 
 async function loadDatabase() {
-    page = document.querySelector('iframe').contentDocument;
-    curso = extractText(/Voltar para tela do curso: (.+?)"/);
-    disciplina = extractText(/Disciplina selecionada: (.+?)"/);
-    conteudo = extractText(/Conteúdo selecionado: (.+?)"/);
-    aula = sanitizeText(page.querySelector('h1').innerText.replace(/ \(código.*/, ''));
+    curso = sanitizeText(document.querySelector('h1').textContent);
+    disciplina = sanitizeText(getElementByContent(/^disciplina$/).nextElementSibling.textContent);
+    conteudo = sanitizeText(getElementByContent(/^conteúdo$/).nextElementSibling.textContent);
+    aula = sanitizeText(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''));
 
-    if (!curso || !disciplina || !conteudo || !aula) {
-        console.error("Extraction failed", { curso, disciplina, conteudo, aula });
-        return null;
-    }
+    if (!curso || !disciplina || !conteudo || !aula) throw new Error("Missing data " + { curso, disciplina, conteudo, aula });
 
     return openDatabase("grancursos", 1);
 }
 
-function extractText(regex) {
-    const match = page.body.innerHTML.match(regex);
-    return match ? sanitizeText(match[1]) : null;
+function getElementByContent(regex) {
+    const divs = document.querySelectorAll('div');
+    return Array.from(divs).find(div => div.textContent.match(regex));
 }
 
 function sanitizeText(text) {
-    return text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').trim();
+    return text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').replace(/^-+|-+$/g, '').trim();
 }
 
 function withObjectStore(mode, callback) {
@@ -74,7 +70,7 @@ function addToDB(data) {
     return withObjectStore("readwrite", store => store.add(data));
 }
 
-function putToDB(data) { // parei aqui: algum bug que quando atualiza o registro, parece que encerra o loop, da linha 115, sem percorrer os demais arquivos
+function putToDB(data) {
     if (!data.id) throw new Error("{id} is required");
 
     console.log("Updating", data.id, data);
@@ -86,7 +82,7 @@ function putToDB(data) { // parei aqui: algum bug que quando atualiza o registro
     );
 }
 
-async function updateDatabase(aula, tipo, filename, url) {
+async function updateDatabase(tipo, filename, url, aula = sanitizeText(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''))) {
     const [arquivo] = await queryDB(tipo, filename);
     if (!arquivo) await downloadFile(url, filename);
 
@@ -112,27 +108,31 @@ async function downloadFile(url, filename) {
 }
 
 async function baixarMaterial(label, tipo = "slide") {
-    for (const el of page.querySelectorAll("#lista-aulas > li")) {
-        const material = el.querySelector(`a[aria-label="${label}"]`) ?? el.querySelector(`a[href^="/aluno/espaco/${label}"]`);
-        const aula = el.querySelector('span').innerText.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-');
+    const material = document.querySelector(`a[href^="/aluno/espaco/${label}"]`);
 
-        if (!material?.href || !aula) continue;
+    if (!material?.href) throw new Error("Material not found: " + { label, tipo });
 
-        const urlRes = await fetch(material.href);
-        const filename = urlRes.url.split(/\/|\?/).at(-2);
+    const urlRes = await fetch(material.href);
+    const filename = urlRes.url.split(/\/|\?/).at(-2);
 
-        if (!filename) { console.error("Filename extraction error:", urlRes.url); continue; }
+    if (!filename) throw new Error("Filename extraction error: " + urlRes.url);
 
-        await updateDatabase(aula, tipo, filename, urlRes.url);
-    }
+    await updateDatabase(tipo, filename, urlRes.url);
 }
 
-async function baixarVideo(url) {
+async function baixarVideo() {
+    const url = document.querySelector("video").src.trim();
     const filename = url.match(/[^\/]+\.mp4/)[0];
-    await updateDatabase(aula, "video", filename, url);
+    await updateDatabase("video", filename, url);
 }
 
-async function salvarProgresso(filename, contentType) {
+async function baixarAula() {
+    baixarMaterial("download-apostila");
+    baixarMaterial("download-resumo", "resumo");
+    await baixarVideo();
+}
+
+async function salvarProgresso(filename, contentType) { // parei aqui: não está salvando o progresso
     console.log("Saving progress");
 }
 
@@ -140,16 +140,9 @@ chrome.runtime.onMessage.addListener(
     async (request, sender, sendResponse) => {
         if (!database) database = await loadDatabase();
 
-        if (request.fn == 'salvarProgresso') salvarProgresso('grancursos.csv', { 'text/csv': ['.csv'] })
-        else if (request.fn == 'baixarVideo') await baixarVideo(page.querySelector("video").src.trim())
-        else if (request.fn == 'baixarSlides') {
-            await baixarMaterial("Baixar slide da aula")
-            await baixarMaterial("download-apostila")
-        } else if (request.fn == 'baixarResumos') {
-            await baixarMaterial("Material em PDF", "resumo")
-            await baixarMaterial("Baixar aula degravada", "resumo")
-            await baixarMaterial("download-resumo", "resumo")
-        }
+        if (request.fn == 'salvarProgresso') salvarProgresso('grancursos.csv', { 'text/csv': ['.csv'] });
+        else if (request.fn == 'baixarAula') await baixarAula();
+
         sendResponse({ success: "TRUE" });
         return true;
     });
