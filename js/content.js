@@ -132,8 +132,16 @@ async function baixarAula() {
     await baixarVideo();
 }
 
-async function salvarProgresso(filename, contentType) { // parei aqui: não está salvando o progresso
-    console.log("Saving progress");
+async function salvarProgresso(filename, contentType) {
+    const data = await withObjectStore("readonly", store => store.getAll());
+    const csv = data.map(row => Object.values(row).join('\t')).join('\n');
+    const blob = new Blob([csv], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 chrome.runtime.onMessage.addListener(
