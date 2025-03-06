@@ -150,7 +150,7 @@ async function baixarAula() {
 }
 
 // Save the progress to a file (CSV format)
-async function salvarProgresso(filename, contentType) {
+async function exportar(filename, contentType) {
     const data = await withObjectStore("readonly", store => store.getAll());
     const csv =
         "curso\tdisciplina\tconteudo\taula\tresumo\tresumoURL\tid\tslide\tslideURL\tvideo\tvideoURL\n" +
@@ -165,11 +165,25 @@ async function salvarProgresso(filename, contentType) {
     URL.revokeObjectURL(url);
 }
 
+// Load progress from a file (CSV format)
+async function importar(filename, contentType) {
+    console.log('falta testar');
+    // const file = await fetch(filename);
+    // const text = await file.text();
+    // const rows = text.split('\n').slice(1);
+
+    // for (const row of rows) {
+    //     const [curso, disciplina, conteudo, aula, resumo, resumoURL, id, slide, slideURL, video, videoURL] = row.split('\t');
+    //     await addToDB({ curso, disciplina, conteudo, aula, resumo, resumoURL, id, slide, slideURL, video, videoURL });
+    // }
+}
+
 // Event listener for message handling
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     if (!database) database = await loadDatabase();
 
-    if (request.fn === 'salvarProgresso') salvarProgresso('grancursos.csv', 'text/csv');
+    if (request.fn === 'exportar') exportar('grancursos.csv', 'text/csv');
+    else if (request.fn === 'importar') importar('grancursos.csv', 'text/csv');
     else if (request.fn === 'baixarAula') baixarAula();
 
     sendResponse({ success: "TRUE" });

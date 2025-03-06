@@ -7,5 +7,6 @@ async function callFunction(evt) {
 
 window.addEventListener('load', (event) => {
     document.getElementById('baixarAula').addEventListener('click', callFunction);
-    document.getElementById('salvarProgresso').addEventListener('click', callFunction);
+    document.getElementById('exportar').addEventListener('click', callFunction);
+    document.getElementById('importar').addEventListener('click', callFunction);
 });
