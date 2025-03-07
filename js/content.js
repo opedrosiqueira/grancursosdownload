@@ -1,4 +1,4 @@
-let database, curso, disciplina, conteudo, aula;
+let database, curso, disciplina, conteudo, aula, duracao;
 const DB_STORE = "aula";
 
 // Open Database and create necessary object store and indexes
@@ -16,16 +16,23 @@ function openDatabase(name, version) {
 function setupDatabase(db) {
     const store = db.createObjectStore(DB_STORE, { keyPath: "id", autoIncrement: true });
     store.createIndex('materia', ['curso', 'disciplina', 'conteudo', 'aula']);
-    store.createIndex("curso", "curso");
-    store.createIndex("disciplina", "disciplina");
-    store.createIndex("conteudo", "conteudo");
-    store.createIndex("aula", "aula");
     store.createIndex("slide", "slide");
     store.createIndex("resumo", "resumo");
     store.createIndex("video", "video");
-    store.createIndex("slideURL", "slideURL");
-    store.createIndex("resumoURL", "resumoURL");
-    store.createIndex("videoURL", "videoURL");
+}
+
+// Helper function to find elements by matching text content
+function getElementByContent(search, ignoreRegex = false) {
+    const divs = document.querySelectorAll('div');
+    return Array.from(divs).findLast(div => ignoreRegex ?
+        div.textContent.includes(search) :
+        div.textContent.match(search)
+    );
+}
+
+// Sanitize text by replacing non-alphanumeric characters with hyphens
+function sanitizeText(text) {
+    return text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').replace(/^-+|-+$/g, '').trim();
 }
 
 // Sanitize and extract relevant data from the DOM
@@ -34,23 +41,13 @@ async function loadDatabase() {
     disciplina = sanitizeText(getElementByContent(/^disciplina$/).nextElementSibling.textContent);
     conteudo = sanitizeText(getElementByContent(/^conteúdo$/).nextElementSibling.textContent);
     aula = sanitizeText(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''));
+    duracao = getElementByContent(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''), true).querySelector('time').textContent.trim();
 
-    if (!curso || !disciplina || !conteudo || !aula) {
-        throw new Error("Missing data: " + { curso, disciplina, conteudo, aula });
+    if (!curso || !disciplina || !conteudo || !aula || !duracao) {
+        throw new Error("Missing data: " + { curso, disciplina, conteudo, aula, duracao });
     }
 
     return openDatabase("grancursos", 1);
-}
-
-// Helper function to find elements by matching text content
-function getElementByContent(regex) {
-    const divs = document.querySelectorAll('div');
-    return Array.from(divs).find(div => div.textContent.match(regex));
-}
-
-// Sanitize text by replacing non-alphanumeric characters with hyphens
-function sanitizeText(text) {
-    return text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/g, '-').replace(/^-+|-+$/g, '').trim();
 }
 
 // Generalized function for interacting with the object store
@@ -91,13 +88,13 @@ function putToDB(data) {
 }
 
 // Update the database with file information
-async function updateDatabase(tipo, filename, url, aula = sanitizeText(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''))) {
+async function updateDatabase(tipo, filename, url, aulaAtual = aula, duracaoAtual = duracao) {
     const [arquivo] = await queryDB(tipo, filename);
     if (!arquivo) await downloadFile(url, filename);
 
-    const [result] = await queryDB("materia", [curso, disciplina, conteudo, aula]);
+    const [result] = await queryDB("materia", [curso, disciplina, conteudo, aulaAtual]);
     if (!result) {
-        await addToDB({ curso, disciplina, conteudo, aula, [tipo]: filename, [`${tipo}URL`]: url });
+        await addToDB({ curso, disciplina, conteudo, aula: aulaAtual, duracao: duracaoAtual, [tipo]: filename, [`${tipo}URL`]: url });
     } else if (result[tipo] === filename) {
         console.log(`Already downloaded: ${filename}`);
     } else {
@@ -153,7 +150,7 @@ async function baixarAula() {
 async function exportar(filename, contentType) {
     const data = await withObjectStore("readonly", store => store.getAll());
     const csv =
-        "curso\tdisciplina\tconteudo\taula\tresumo\tresumoURL\tid\tslide\tslideURL\tvideo\tvideoURL\n" +
+        "curso\tdisciplina\tconteudo\taula\tduracao\tresumo\tresumoURL\tid\tslide\tslideURL\tvideo\tvideoURL\n" +
         data.map(row => Object.values(row).join('\t')).join('\n');
 
     const blob = new Blob([csv], { type: contentType });
@@ -173,8 +170,8 @@ async function importar(filename, contentType) {
     // const rows = text.split('\n').slice(1);
 
     // for (const row of rows) {
-    //     const [curso, disciplina, conteudo, aula, resumo, resumoURL, id, slide, slideURL, video, videoURL] = row.split('\t');
-    //     await addToDB({ curso, disciplina, conteudo, aula, resumo, resumoURL, id, slide, slideURL, video, videoURL });
+    //     const [curso, disciplina, conteudo, aula, duracao, resumo, resumoURL, id, slide, slideURL, video, videoURL] = row.split('\t');
+    //     await addToDB({ curso, disciplina, conteudo, aula, duracao, resumo, resumoURL, id, slide, slideURL, video, videoURL });
     // }
 }
 
