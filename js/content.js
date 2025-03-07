@@ -149,9 +149,10 @@ async function baixarAula() {
 // Save the progress to a file (CSV format)
 async function exportar(filename, contentType) {
     const data = await withObjectStore("readonly", store => store.getAll());
-    const csv =
-        "curso\tdisciplina\tconteudo\taula\tduracao\tresumo\tresumoURL\tid\tslide\tslideURL\tvideo\tvideoURL\n" +
-        data.map(row => Object.values(row).join('\t')).join('\n');
+    let csv = "id\tcurso\tdisciplina\tconteudo\taula\tduracao\tvideo\tvideoURL\tslide\tslideURL\tresumo\tresumoURL\n"
+    for (const aula of data) {
+        csv += `${aula.id}\t${aula.curso}\t${aula.disciplina}\t${aula.conteudo}\t${aula.aula}\t${aula.duracao}\t${aula.video}\t${aula.videoURL}\t${aula.slide}\t${aula.slideURL}\t${aula.resumo}\t${aula.resumoURL}\n`;
+    }
 
     const blob = new Blob([csv], { type: contentType });
     const url = URL.createObjectURL(blob);
