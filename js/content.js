@@ -43,7 +43,7 @@ async function loadDatabase() {
     aula = sanitizeText(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''));
     duracao = getElementByContent(document.querySelector('h2').textContent.replace(/\s*\(código.*/i, ''), true).querySelector('time').textContent.trim();
 
-    if (!curso || !disciplina || !conteudo || !aula || !duracao) {
+    if (!curso || !disciplina || !conteudo || !aula) {
         throw new Error("Missing data: " + { curso, disciplina, conteudo, aula, duracao });
     }
 
